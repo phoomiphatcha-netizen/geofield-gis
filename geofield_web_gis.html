@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeoField GIS — Web GIS & Coordinate Logger</title>
+
+  <!-- Leaflet: แผนที่แบบ Interactive -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
+  <style>
+    :root {
+      --navy: #10243a;
+      --blue: #1769aa;
+      --green: #16835d;
+      --bg: #f3f6f9;
+      --border: #dce3ea;
+      --text: #1d2935;
+      --muted: #647383;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text); background: var(--bg);
+    }
+    header {
+      min-height: 62px; padding: 12px 20px; background: var(--navy); color: white;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+    header span { font-size: 12px; color: #c7d6e5; }
+    .layout {
+      display: grid; grid-template-columns: 340px minmax(0, 1fr);
+      gap: 14px; padding: 14px; height: calc(100vh - 62px); min-height: 600px;
+    }
+    aside {
+      background: white; border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; overflow-y: auto;
+    }
+    h2 { font-size: 15px; margin: 0 0 12px; color: var(--navy); }
+    .section { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .section:last-child { border-bottom: 0; margin-bottom: 0; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 5px; }
+    input {
+      width: 100%; padding: 10px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 14px; background: #fff; color: var(--text);
+    }
+    input[readonly] { background: #f7f9fb; }
+    button {
+      border: 0; border-radius: 8px; padding: 10px 12px; cursor: pointer;
+      font-size: 13px; font-weight: 600; color: white; background: var(--blue);
+    }
+    button:hover { filter: brightness(.94); }
+    button.secondary { background: #e9eff5; color: #24384b; }
+    button.green { background: var(--green); }
+    button.danger { background: #b84747; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .button-row button { flex: 1; min-width: 110px; }
+    .coords {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .status {
+      margin-top: 9px; padding: 9px 10px; border-radius: 8px;
+      background: #f1f5f8; color: var(--muted); font-size: 12px; line-height: 1.5;
+    }
+    .status.ok { background: #e9f7f0; color: #176342; }
+    .status.error { background: #fff0ef; color: #9b302b; }
+    .small-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin-top: 8px; }
+    #map { width: 100%; height: 100%; min-height: 500px; border-radius: 12px; border: 1px solid var(--border); }
+    .map-wrap { min-width: 0; min-height: 0; }
+    .record-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .record-header h2 { margin-bottom: 0; }
+    #recordCount { color: var(--muted); font-size: 12px; }
+    .records { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .record {
+      border: 1px solid var(--border); border-radius: 8px; padding: 9px;
+      font-size: 12px; display: flex; justify-content: space-between; gap: 8px;
+    }
+    .record strong { display: block; color: var(--navy); margin-bottom: 3px; }
+    .record small { color: var(--muted); }
+    .record button { padding: 6px 8px; min-width: auto; align-self: center; }
+
+
+    .area-result {
+      margin-top: 10px; padding: 11px; border: 1px solid #b9d9ca;
+      border-radius: 9px; background: #f0f8f4;
+    }
+    .area-result .area-number { font-size: 22px; font-weight: 800; color: #176342; }
+    .area-result .area-caption { color: #567366; font-size: 11px; }
+    .area-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .area-item {
+      display: flex; justify-content: space-between; gap: 8px; align-items: center;
+      padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+    }
+    .area-item button { padding: 6px 8px; }
+
+    .forecast-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .metric {
+      border: 1px solid var(--border); border-radius: 9px; padding: 10px;
+      background: #fbfcfd; min-width: 0;
+    }
+    .metric .metric-label { color: var(--muted); font-size: 11px; }
+    .metric .metric-value { font-size: 19px; font-weight: 750; color: var(--navy); margin-top: 3px; }
+    .metric .metric-sub { color: var(--muted); font-size: 10px; line-height: 1.4; margin-top: 3px; }
+    .risk-low { color: #16835d !important; }
+    .risk-medium { color: #a66b00 !important; }
+    .risk-high { color: #bd4b28 !important; }
+    .risk-veryhigh { color: #a32626 !important; }
+    .forecast-list { margin: 8px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.65; }
+    .forecast-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .forecast-actions button { flex: 1; }
+    .forecast-meta { color: var(--muted); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+    .hourly-strip { display: flex; gap: 7px; overflow-x: auto; padding: 8px 0 3px; }
+    .hour-card { min-width: 78px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; text-align: center; }
+    .hour-card strong { display: block; font-size: 12px; }
+    .hour-card span { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    @media (max-width: 850px) {
+      .layout { grid-template-columns: 1fr; height: auto; }
+      aside { order: 2; }
+      .map-wrap { order: 1; height: 55vh; min-height: 380px; }
+      #map { min-height: 380px; }
+      header span { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌍 GeoField GIS</h1>
+    <span>Web GIS · Coordinate Logger · Field Survey</span>
+  </header>
+
+  <main class="layout">
+    <aside>
+      <section class="section">
+        <h2>📍 ตำแหน่งปัจจุบัน</h2>
+        <div class="coords">
+          <div>
+            <label for="latitude">Latitude (ละติจูด)</label>
+            <input id="latitude" type="text" readonly placeholder="ยังไม่ได้ระบุตำแหน่ง" />
+          </div>
+          <div>
+            <label for="longitude">Longitude (ลองจิจูด)</label>
+            <input id="longitude" type="text" readonly placeholder="ยังไม่ได้ระบุตำแหน่ง" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="locateBtn">◎ หาตำแหน่งปัจจุบัน</button>
+          <button id="captureBtn" class="green">＋ บันทึกพิกัด</button>
+        </div>
+        <div id="status" class="status">พร้อมใช้งาน — กด “หาตำแหน่งปัจจุบัน” และอนุญาต Location ในเบราว์เซอร์</div>
+        <p class="small-note">หมายเหตุ: การระบุตำแหน่งต้องเปิดผ่าน HTTPS หรือ localhost และต้องอนุญาตสิทธิ์ Location ให้เว็บไซต์ก่อน</p>
+      </section>
+
+
+      <section class="section">
+        <h2>📐 วาดขอบเขตและคำนวณพื้นที่</h2>
+        <div class="small-note">ใช้เครื่องมือวาด Polygon หรือ Rectangle บนแผนที่ แล้วระบบจะคำนวณพื้นที่ภายในขอบเขตเป็นตารางเมตร</div>
+        <div class="area-result">
+          <div class="area-caption">พื้นที่รวมของขอบเขตทั้งหมด</div>
+          <div class="area-number" id="totalArea">0.00 m²</div>
+          <div class="area-caption" id="areaCount">0 พื้นที่</div>
+        </div>
+        <div id="areaList" class="area-list">
+          <div class="small-note">ยังไม่มีขอบเขตที่วาด</div>
+        </div>
+        <div class="button-row">
+          <button id="clearAreasBtn" class="danger">ลบขอบเขตทั้งหมด</button>
+        </div>
+        <p class="small-note">ค่าพื้นที่คำนวณจากพิกัดภูมิศาสตร์บนทรงกลมโลก (หน่วย m²) เหมาะสำหรับการประเมินเบื้องต้น งานสำรวจที่ต้องการความแม่นยำสูงควรตรวจสอบด้วยระบบพิกัดฉาย เช่น UTM Zone ที่ตรงกับพื้นที่</p>
+      </section>
+
+      <section class="section">
+        <h2>📝 บันทึกจุดสำรวจ</h2>
+        <label for="pointName">ชื่อจุด / รายละเอียด (ไม่บังคับ)</label>
+        <input id="pointName" type="text" placeholder="เช่น จุดสำรวจต้นไม้ A1" />
+        <label for="manualLat">Latitude (กรอกเองได้)</label>
+        <input id="manualLat" type="number" step="any" placeholder="เช่น 14.0780" />
+        <label for="manualLng">Longitude (กรอกเองได้)</label>
+        <input id="manualLng" type="number" step="any" placeholder="เช่น 100.6010" />
+        <div class="button-row">
+          <button id="saveManualBtn" class="secondary">บันทึกพิกัดที่กรอก</button>
+        </div>
+        <p class="small-note">พิกัดที่บันทึกจะเก็บไว้ในเบราว์เซอร์เครื่องนี้ (Local Storage) ไม่ได้ส่งขึ้นเซิร์ฟเวอร์</p>
+      </section>
+
+
+      <section class="section">
+        <h2>🌦️ พยากรณ์อากาศและความเสี่ยง ณ พิกัด</h2>
+        <div class="small-note">ระบบจะใช้พิกัด GPS ล่าสุด หรือพิกัดที่คลิกบนแผนที่ เพื่อดึงข้อมูลพยากรณ์</div>
+        <div class="forecast-actions">
+          <button id="forecastBtn">ตรวจสอบสภาพพื้นที่</button>
+        </div>
+        <div id="forecastStatus" class="status">รอพิกัด — กดหาตำแหน่งหรือคลิกบนแผนที่ก่อน</div>
+        <div id="forecastPanel"></div>
+      </section>
+
+      <section class="section">
+        <div class="record-header">
+          <h2>🗂 รายการพิกัดที่บันทึก</h2>
+          <span id="recordCount">0 จุด</span>
+        </div>
+        <div class="button-row">
+          <button id="exportBtn" class="green">ส่งออก CSV</button>
+          <button id="clearBtn" class="danger">ลบทั้งหมด</button>
+        </div>
+        <div id="records" class="records">
+          <div class="small-note">ยังไม่มีข้อมูลพิกัด</div>
+        </div>
+      </section>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map" aria-label="แผนที่ Web GIS"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script>
+    // เริ่มต้นที่กรุงเทพฯ เป็นเพียงตำแหน่งเริ่มต้นของแผนที่ ไม่ใช่ตำแหน่ง GPS ของผู้ใช้
+    const map = L.map('map').setView([13.7563, 100.5018], 6);
+
+    // แผนที่ฐาน (Base maps)
+    const baseMaps = {
+      "OpenStreetMap": L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }
+      ),
+      "Esri World Imagery (Satellite)": L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
+      ),
+      "OpenTopoMap": L.tileLayer(
+        "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        { maxZoom: 17, attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap' }
+      ),
+      "Esri World Street Map": L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
+      ),
+      "Esri World Topographic": L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
+      ),
+      "CartoDB Positron (Light)": L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }
+      )
+    };
+
+    baseMaps["OpenStreetMap"].addTo(map);
+    L.control.layers(baseMaps, null, { collapsed: true, position: "topright" }).addTo(map);
+    L.control.scale({ imperial: false }).addTo(map);
+
+    // เครื่องมือวาดขอบเขตพื้นที่ด้วย Leaflet.draw
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    const drawControl = new L.Control.Draw({
+      position: "topleft",
+      draw: {
+        polygon: {
+          allowIntersection: false,
+          showArea: true,
+          shapeOptions: { color: "#16835d", weight: 3, fillOpacity: 0.18 }
+        },
+        rectangle: {
+          shapeOptions: { color: "#1769aa", weight: 3, fillOpacity: 0.16 }
+        },
+        polyline: false,
+        circle: false,
+        circlemarker: false,
+        marker: false
+      },
+      edit: { featureGroup: drawnItems, remove: true }
+    });
+    map.addControl(drawControl);
+
+    const statusEl = document.getElementById("status");
+    const latEl = document.getElementById("latitude");
+    const lngEl = document.getElementById("longitude");
+    let currentPosition = null;
+    let currentMarker = null;
+    let accuracyCircle = null;
+    let savedMarkers = [];
+
+    function setStatus(message, type = "") {
+      statusEl.textContent = message;
+      statusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function showCoordinates(lat, lng, accuracy) {
+      currentPosition = { lat, lng, accuracy: accuracy ?? null };
+      latEl.value = lat.toFixed(7);
+      lngEl.value = lng.toFixed(7);
+
+      if (currentMarker) map.removeLayer(currentMarker);
+      if (accuracyCircle) map.removeLayer(accuracyCircle);
+
+      currentMarker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<b>ตำแหน่งปัจจุบัน</b><br>Lat: ${lat.toFixed(7)}<br>Lng: ${lng.toFixed(7)}`)
+        .openPopup();
+
+      if (accuracy && Number.isFinite(accuracy)) {
+        accuracyCircle = L.circle([lat, lng], {
+          radius: accuracy, color: "#1769aa", fillOpacity: 0.10, weight: 1
+        }).addTo(map);
+      }
+      map.setView([lat, lng], 17);
+    }
+
+    function locateUser() {
+      if (!navigator.geolocation) {
+        setStatus("เบราว์เซอร์นี้ไม่รองรับ Geolocation", "error");
+        return;
+      }
+      setStatus("กำลังค้นหาตำแหน่ง GPS…");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          showCoordinates(latitude, longitude, accuracy);
+          setStatus(`ระบุตำแหน่งสำเร็จ · ความแม่นยำประมาณ ${Math.round(accuracy)} เมตร`, "ok");
+          loadForecast();
+        },
+        (error) => {
+          const messages = {
+            1: "ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง กรุณาเปิด Location Permission",
+            2: "ไม่สามารถระบุตำแหน่งได้ ลองเปิด GPS หรือเชื่อมต่ออินเทอร์เน็ต",
+            3: "หมดเวลารอพิกัด กรุณาลองอีกครั้ง"
+          };
+          setStatus(messages[error.code] || "เกิดข้อผิดพลาดในการระบุตำแหน่ง", "error");
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    function getRecords() {
+      try { return JSON.parse(localStorage.getItem("geofield_records") || "[]"); }
+      catch { return []; }
+    }
+    function saveRecords(records) {
+      localStorage.setItem("geofield_records", JSON.stringify(records));
+      renderRecords();
+    }
+    function addRecord(lat, lng, name, accuracy = null) {
+      const records = getRecords();
+      records.push({
+        id: Date.now() + Math.random(),
+        name: name || `จุดสำรวจ ${records.length + 1}`,
+        latitude: Number(lat),
+        longitude: Number(lng),
+        accuracy: accuracy,
+        recordedAt: new Date().toISOString()
+      });
+      saveRecords(records);
+      setStatus("บันทึกพิกัดเรียบร้อยแล้ว", "ok");
+    }
+
+
+    // คำนวณพื้นที่ geodesic บนทรงกลมโลก (m²), รองรับ Polygon และ MultiPolygon
+    function ringAreaSquareMeters(latLngs) {
+      const earthRadius = 6371008.8;
+      if (!latLngs || latLngs.length < 3) return 0;
+      let sum = 0;
+      for (let i = 0; i < latLngs.length; i++) {
+        const current = latLngs[i];
+        const next = latLngs[(i + 1) % latLngs.length];
+        const lat1 = current.lat * Math.PI / 180;
+        const lat2 = next.lat * Math.PI / 180;
+        const deltaLng = (next.lng - current.lng) * Math.PI / 180;
+        sum += deltaLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+      }
+      return Math.abs(sum * earthRadius * earthRadius / 2);
+    }
+
+    function polygonAreaSquareMeters(layer) {
+      const latLngs = layer.getLatLngs();
+      if (!latLngs.length) return 0;
+
+      // Polygon ทั่วไป: latLngs = [outerRing, hole1, ...]
+      // Rectangle ใช้โครงสร้างเดียวกัน
+      if (Array.isArray(latLngs[0]) && latLngs[0].length &&
+          latLngs[0][0] && typeof latLngs[0][0].lat === "number") {
+        let area = ringAreaSquareMeters(latLngs[0]);
+        for (let i = 1; i < latLngs.length; i++) {
+          area -= ringAreaSquareMeters(latLngs[i]);
+        }
+        return Math.max(0, area);
+      }
+      return 0;
+    }
+
+    function formatArea(area) {
+      return area.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function renderAreas() {
+      const layers = [];
+      drawnItems.eachLayer(layer => layers.push(layer));
+      let total = 0;
+      const list = document.getElementById("areaList");
+      list.innerHTML = "";
+
+      layers.forEach((layer, index) => {
+        const area = polygonAreaSquareMeters(layer);
+        total += area;
+        layer._geoArea = area;
+        layer.bindPopup(`<b>พื้นที่ ${index + 1}</b><br>ขนาด ${formatArea(area)} m²`);
+        const item = document.createElement("div");
+        item.className = "area-item";
+
+        const detail = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = `พื้นที่ ${index + 1}`;
+        const value = document.createElement("div");
+        value.textContent = `${formatArea(area)} m²`;
+        value.style.color = "#176342";
+        value.style.fontWeight = "700";
+        detail.append(name, value);
+
+        const actions = document.createElement("div");
+        const zoomBtn = document.createElement("button");
+        zoomBtn.textContent = "ดู";
+        zoomBtn.addEventListener("click", () => {
+          map.fitBounds(layer.getBounds(), { padding: [25, 25] });
+          layer.openPopup();
+        });
+        actions.append(zoomBtn);
+        item.append(detail, actions);
+        list.appendChild(item);
+      });
+
+      document.getElementById("totalArea").textContent = `${formatArea(total)} m²`;
+      document.getElementById("areaCount").textContent = `${layers.length} พื้นที่`;
+      if (!layers.length) list.innerHTML = '<div class="small-note">ยังไม่มีขอบเขตที่วาด</div>';
+    }
+
+    map.on(L.Draw.Event.CREATED, event => {
+      drawnItems.addLayer(event.layer);
+      renderAreas();
+      event.layer.openPopup();
+    });
+    map.on(L.Draw.Event.EDITED, renderAreas);
+    map.on(L.Draw.Event.DELETED, renderAreas);
+
+    document.getElementById("clearAreasBtn").addEventListener("click", () => {
+      if (drawnItems.getLayers().length && confirm("ยืนยันลบขอบเขตทั้งหมดหรือไม่?")) {
+        drawnItems.clearLayers();
+        renderAreas();
+      }
+    });
+
+    function renderRecords() {
+      const records = getRecords();
+      document.getElementById("recordCount").textContent = `${records.length} จุด`;
+      const container = document.getElementById("records");
+      container.innerHTML = "";
+      if (!records.length) {
+        container.innerHTML = '<div class="small-note">ยังไม่มีข้อมูลพิกัด</div>';
+        savedMarkers.forEach(marker => map.removeLayer(marker));
+        savedMarkers = [];
+        return;
+      }
+
+      savedMarkers.forEach(marker => map.removeLayer(marker));
+      savedMarkers = [];
+
+      records.forEach((record, index) => {
+        const marker = L.circleMarker([record.latitude, record.longitude], {
+          radius: 7, color: "#16835d", fillColor: "#25aa79", fillOpacity: 0.9
+        }).addTo(map).bindPopup(
+          `<b>${escapeHtml(record.name)}</b><br>Lat: ${record.latitude}<br>Lng: ${record.longitude}`
+        );
+        savedMarkers.push(marker);
+
+        const item = document.createElement("div");
+        item.className = "record";
+        const info = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = record.name;
+        const detail = document.createElement("small");
+        detail.textContent = `${record.latitude.toFixed(7)}, ${record.longitude.toFixed(7)}`;
+        info.append(title, detail);
+
+        const actions = document.createElement("div");
+        const viewBtn = document.createElement("button");
+        viewBtn.textContent = "ดู";
+        viewBtn.addEventListener("click", () => {
+          map.setView([record.latitude, record.longitude], 17);
+          marker.openPopup();
+        });
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "ลบ";
+        deleteBtn.className = "danger";
+        deleteBtn.style.marginLeft = "5px";
+        deleteBtn.addEventListener("click", () => {
+          const updated = getRecords().filter(r => r.id !== record.id);
+          saveRecords(updated);
+        });
+        actions.append(viewBtn, deleteBtn);
+        item.append(info, actions);
+        container.appendChild(item);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[char]));
+    }
+
+    document.getElementById("locateBtn").addEventListener("click", locateUser);
+    document.getElementById("captureBtn").addEventListener("click", () => {
+      if (!currentPosition) {
+        setStatus("กรุณากดหาตำแหน่งปัจจุบันก่อนบันทึก", "error");
+        return;
+      }
+      addRecord(
+        currentPosition.lat, currentPosition.lng,
+        document.getElementById("pointName").value.trim(),
+        currentPosition.accuracy
+      );
+      document.getElementById("pointName").value = "";
+    });
+
+    document.getElementById("saveManualBtn").addEventListener("click", () => {
+      const lat = Number(document.getElementById("manualLat").value);
+      const lng = Number(document.getElementById("manualLng").value);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+          document.getElementById("manualLat").value === "" ||
+          document.getElementById("manualLng").value === "" ||
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        setStatus("กรุณากรอก Latitude (-90 ถึง 90) และ Longitude (-180 ถึง 180) ให้ถูกต้อง", "error");
+        return;
+      }
+      addRecord(lat, lng, document.getElementById("pointName").value.trim());
+      map.setView([lat, lng], 17);
+      document.getElementById("pointName").value = "";
+      document.getElementById("manualLat").value = "";
+      document.getElementById("manualLng").value = "";
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const records = getRecords();
+      if (!records.length) {
+        setStatus("ยังไม่มีพิกัดสำหรับส่งออก", "error");
+        return;
+      }
+      const rows = [
+        ["Name", "Latitude", "Longitude", "Accuracy_m", "Recorded_At"],
+        ...records.map(r => [r.name, r.latitude, r.longitude, r.accuracy ?? "", r.recordedAt])
+      ];
+      const csv = "\uFEFF" + rows.map(row =>
+        row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")
+      ).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `geofield_coordinates_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      if (confirm("ยืนยันลบพิกัดทั้งหมดหรือไม่?")) {
+        saveRecords([]);
+        setStatus("ลบข้อมูลพิกัดทั้งหมดแล้ว");
+      }
+    });
+
+    // คลิกบนแผนที่เพื่ออ่านพิกัด ณ จุดที่เลือก
+    map.on("click", event => {
+      const { lat, lng } = event.latlng;
+      latEl.value = lat.toFixed(7);
+      lngEl.value = lng.toFixed(7);
+      currentPosition = { lat, lng, accuracy: null };
+      setStatus("เลือกพิกัดจากการคลิกบนแผนที่แล้ว — กดบันทึกพิกัดเพื่อจัดเก็บ");
+      loadForecast();
+    });
+
+
+    // ---------- Weather, PM2.5 and indicative flood screening ----------
+    const forecastStatusEl = document.getElementById("forecastStatus");
+    const forecastPanelEl = document.getElementById("forecastPanel");
+
+    function setForecastStatus(message, type = "") {
+      forecastStatusEl.textContent = message;
+      forecastStatusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function metricCard(label, value, unit, sub = "", riskClass = "") {
+      return `<div class="metric">
+        <div class="metric-label">${label}</div>
+        <div class="metric-value ${riskClass}">${value}${unit ? ` ${unit}` : ""}</div>
+        <div class="metric-sub">${sub}</div>
+      </div>`;
+    }
+
+    function weatherDescription(code) {
+      const descriptions = {
+        0: "ท้องฟ้าแจ่มใส", 1: "มีเมฆเล็กน้อย", 2: "มีเมฆบางส่วน", 3: "มีเมฆมาก",
+        45: "มีหมอก", 48: "หมอกจับตัวเป็นน้ำแข็ง",
+        51: "ฝนปรอยเล็กน้อย", 53: "ฝนปรอยปานกลาง", 55: "ฝนปรอยหนาแน่น",
+        61: "ฝนเล็กน้อย", 63: "ฝนปานกลาง", 65: "ฝนตกหนัก",
+        71: "หิมะตกเล็กน้อย", 73: "หิมะตกปานกลาง", 75: "หิมะตกหนัก",
+        80: "ฝนซู่เล็กน้อย", 81: "ฝนซู่ปานกลาง", 82: "ฝนซู่รุนแรง",
+        95: "พายุฝนฟ้าคะนอง", 96: "พายุฝนฟ้าคะนองและลูกเห็บ", 99: "พายุรุนแรงและลูกเห็บ"
+      };
+      return descriptions[code] || "ไม่ทราบสภาพอากาศ";
+    }
+
+    function pmAssessment(pm) {
+      if (!Number.isFinite(pm)) return { label: "ไม่มีข้อมูล", cls: "", advice: "ไม่สามารถประเมิน PM2.5 ได้ในขณะนี้" };
+      // เกณฑ์แสดงผลเพื่อการคัดกรองเบื้องต้น อิงช่วงค่าความเข้มข้น PM2.5 (µg/m³)
+      if (pm <= 15) return { label: "ต่ำ", cls: "risk-low", advice: "คุณภาพอากาศอยู่ในระดับค่อนข้างดี กิจกรรมกลางแจ้งทำได้ตามปกติ" };
+      if (pm <= 25) return { label: "ปานกลาง", cls: "risk-medium", advice: "ผู้ที่ไวต่อมลพิษควรสังเกตอาการ และลดกิจกรรมหนักกลางแจ้งหากมีอาการ" };
+      if (pm <= 37.5) return { label: "เริ่มมีผลกระทบ", cls: "risk-high", advice: "ควรลดกิจกรรมกลางแจ้งที่ใช้แรงมาก กลุ่มเสี่ยงควรหลีกเลี่ยงพื้นที่โล่ง" };
+      return { label: "สูง", cls: "risk-veryhigh", advice: "ควรหลีกเลี่ยงกิจกรรมกลางแจ้ง สวมหน้ากากกรองอนุภาคเมื่อจำเป็น และติดตามประกาศทางการ" };
+    }
+
+    function floodAssessment(rain24, rain72, dischargeMax, dischargeMean) {
+      // เป็นดัชนีคัดกรองจากฝนคาดการณ์ ไม่ใช่แบบจำลองน้ำท่วมเชิงลึกหรือประกาศเตือนภัย
+      let score = 0;
+      if (rain24 >= 50) score += 2; else if (rain24 >= 20) score += 1;
+      if (rain72 >= 100) score += 2; else if (rain72 >= 50) score += 1;
+      if (Number.isFinite(dischargeMax) && Number.isFinite(dischargeMean) && dischargeMean > 0) {
+        const ratio = dischargeMax / dischargeMean;
+        if (ratio >= 2.5) score += 2; else if (ratio >= 1.5) score += 1;
+      }
+      if (score >= 4) return {
+        label: "สูง (คัดกรอง)", cls: "risk-veryhigh",
+        advice: "มีสัญญาณฝนสะสม/การระบายน้ำสูง ควรติดตามประกาศเตือนภัย ตรวจสอบพื้นที่ลุ่มต่ำ และเตรียมแผนย้ายสิ่งของ"
+      };
+      if (score >= 2) return {
+        label: "ปานกลาง (คัดกรอง)", cls: "risk-medium",
+        advice: "ควรเฝ้าระวังฝนตกต่อเนื่อง ตรวจทางระบายน้ำ และหลีกเลี่ยงการเดินทางผ่านจุดน้ำท่วมซ้ำซาก"
+      };
+      return {
+        label: "ต่ำจากข้อมูลที่มี", cls: "risk-low",
+        advice: "ยังไม่พบสัญญาณฝนสะสมสูงจากข้อมูลพยากรณ์นี้ แต่ยังอาจเกิดน้ำท่วมจากน้ำหนุน ระบบระบายน้ำ หรือฝนเฉพาะจุดได้"
+      };
+    }
+
+    async function loadForecast() {
+      if (!currentPosition) {
+        setForecastStatus("ยังไม่มีพิกัด กรุณาหาตำแหน่ง GPS หรือคลิกเลือกจุดบนแผนที่ก่อน", "error");
+        return;
+      }
+      const { lat, lng } = currentPosition;
+      setForecastStatus("กำลังดึงข้อมูลพยากรณ์อากาศ PM2.5 และข้อมูลน้ำ…");
+      forecastPanelEl.innerHTML = "";
+
+      const params = `latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability,temperature_2m&daily=precipitation_sum,precipitation_probability_max&forecast_days=3&timezone=auto`;
+      const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?${params}&current=pm2_5,us_aqi&hourly=pm2_5&forecast_days=2&timezone=auto`;
+      const floodUrl = `https://flood-api.open-meteo.com/v1/flood?${params}&daily=river_discharge&forecast_days=7`;
+
+      try {
+        const [weatherResponse, airResponse, floodResponse] = await Promise.allSettled([
+          fetch(weatherUrl), fetch(airUrl), fetch(floodUrl)
+        ]);
+
+        async function parseResponse(result, label) {
+          if (result.status !== "fulfilled" || !result.value.ok) {
+            throw new Error(`${label}: ไม่สามารถเชื่อมต่อแหล่งข้อมูลได้`);
+          }
+          return result.value.json();
+        }
+
+        const weather = await parseResponse(weatherResponse, "อากาศ");
+        const air = await parseResponse(airResponse, "PM2.5");
+        let flood = null;
+        let floodError = false;
+        try { flood = await parseResponse(floodResponse, "ข้อมูลน้ำ"); }
+        catch { floodError = true; }
+
+        const current = weather.current || {};
+        const pmNow = air.current?.pm2_5;
+        const pmInfo = pmAssessment(Number(pmNow));
+        const hourly = weather.hourly || {};
+        const nowIso = current.time || new Date().toISOString();
+        const nowTime = new Date(nowIso).getTime();
+        const times = hourly.time || [];
+        const next24 = times.map((time, i) => ({ time, rain: Number(hourly.precipitation?.[i] || 0) }))
+          .filter(item => new Date(item.time).getTime() >= nowTime)
+          .slice(0, 24);
+        const rain24 = next24.reduce((sum, item) => sum + item.rain, 0);
+        const rain72 = (weather.daily?.precipitation_sum || []).slice(0, 3)
+          .reduce((sum, value) => sum + Number(value || 0), 0);
+        const dischargeValues = flood?.daily?.river_discharge || [];
+        const validDischarge = dischargeValues.map(Number).filter(Number.isFinite);
+        const dischargeMax = validDischarge.length ? Math.max(...validDischarge) : NaN;
+        const dischargeMean = validDischarge.length
+          ? validDischarge.reduce((a, b) => a + b, 0) / validDischarge.length : NaN;
+        const floodInfo = floodAssessment(rain24, rain72, dischargeMax, dischargeMean);
+
+        const hourlyHtml = next24.filter((_, i) => i % 3 === 0).map(item => {
+          const hour = new Date(item.time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="hour-card"><strong>${hour}</strong><span>ฝน ${item.rain.toFixed(1)} มม.</span></div>`;
+        }).join("");
+
+        const dailyHtml = (weather.daily?.time || []).map((date, i) => {
+          const rain = Number(weather.daily.precipitation_sum?.[i] || 0);
+          const chance = weather.daily.precipitation_probability_max?.[i];
+          return `<li>${new Date(date).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}: ฝนสะสม ${rain.toFixed(1)} มม. · โอกาสฝน ${chance ?? "—"}%</li>`;
+        }).join("");
+
+        const floodMetrics = floodError
+          ? metricCard("ข้อมูลแม่น้ำ/การไหล", "ไม่พร้อมใช้งาน", "", "แหล่งข้อมูลน้ำไม่ตอบสนองในขณะนี้")
+          : metricCard("อัตราการไหลของแม่น้ำสูงสุดในช่วงพยากรณ์",
+              Number.isFinite(dischargeMax) ? dischargeMax.toFixed(2) : "ไม่มีข้อมูล",
+              Number.isFinite(dischargeMax) ? "m³/s" : "",
+              "ข้อมูลจากแบบจำลองการไหลของแม่น้ำ ไม่ใช่ระดับน้ำ ณ จุด GPS");
+
+        forecastPanelEl.innerHTML = `
+          <div class="forecast-grid">
+            ${metricCard("อุณหภูมิ", Number.isFinite(current.temperature_2m) ? current.temperature_2m.toFixed(1) : "—", "°C", weatherDescription(current.weather_code))}
+            ${metricCard("ความชื้นสัมพัทธ์", current.relative_humidity_2m ?? "—", "%", `รู้สึกเหมือน ${current.apparent_temperature ?? "—"} °C`)}
+            ${metricCard("PM2.5 ปัจจุบัน", Number.isFinite(Number(pmNow)) ? Number(pmNow).toFixed(1) : "—", "µg/m³", pmInfo.label, pmInfo.cls)}
+            ${metricCard("ฝนคาดการณ์ 24 ชม.", rain24.toFixed(1), "มม.", `ฝนสะสม 3 วัน ${rain72.toFixed(1)} มม.`)}
+            ${metricCard("ความเสี่ยง PM2.5", pmInfo.label, "", "การประเมินจากค่าความเข้มข้น PM2.5", pmInfo.cls)}
+            ${metricCard("ความเสี่ยงน้ำท่วม", floodInfo.label, "", "ดัชนีคัดกรองจากฝนและข้อมูลการไหล", floodInfo.cls)}
+            ${floodMetrics}
+            ${metricCard("ความเร็วลม", current.wind_speed_10m ?? "—", "กม./ชม.", "ค่าปัจจุบันจากแบบจำลองอากาศ")}
+          </div>
+          <h2 style="margin-top:14px">คำแนะนำสำหรับพื้นที่นี้</h2>
+          <ul class="forecast-list">
+            <li><b>สภาพอากาศ:</b> ${weatherDescription(current.weather_code)} อุณหภูมิ ${current.temperature_2m ?? "—"} °C ความชื้น ${current.relative_humidity_2m ?? "—"}%</li>
+            <li><b>PM2.5:</b> ${pmInfo.advice}</li>
+            <li><b>น้ำท่วม:</b> ${floodInfo.advice}</li>
+          </ul>
+          <h2 style="margin-top:14px">พยากรณ์ฝนรายวัน</h2>
+          <ul class="forecast-list">${dailyHtml || "<li>ไม่มีข้อมูลรายวัน</li>"}</ul>
+          <h2 style="margin-top:14px">แนวโน้มฝนราย 3 ชั่วโมง (24 ชั่วโมงข้างหน้า)</h2>
+          <div class="hourly-strip">${hourlyHtml || '<span class="small-note">ไม่มีข้อมูลรายชั่วโมง</span>'}</div>
+          <div class="forecast-meta">
+            พิกัดที่ใช้: ${lat.toFixed(5)}, ${lng.toFixed(5)} · เวลาอ้างอิง: ${new Date().toLocaleString("th-TH")}
+            <br>แหล่งข้อมูล: Open-Meteo Weather, Air Quality และ Flood Forecast APIs · ค่าพยากรณ์เป็นข้อมูลแบบจำลอง อาจคลาดเคลื่อนตามพื้นที่และเวลา
+          </div>
+          <div class="status" style="margin-top:10px">
+            ข้อจำกัดสำคัญ: ระดับความเสี่ยงน้ำท่วมนี้เป็นเพียงการคัดกรองเบื้องต้นจากฝนคาดการณ์และข้อมูลการไหลของแม่น้ำ ไม่ใช่แผนที่น้ำท่วม ไม่ได้คำนวณระดับน้ำล้นตลิ่ง ความสูงภูมิประเทศ ระบบระบายน้ำ หรือน้ำทะเลหนุน โปรดตรวจสอบประกาศจากหน่วยงานทางการก่อนตัดสินใจ
+          </div>
+        `;
+        setForecastStatus("อัปเดตข้อมูลพยากรณ์สำหรับพิกัดที่เลือกแล้ว", "ok");
+      } catch (error) {
+        setForecastStatus(`${error.message || "เกิดข้อผิดพลาด"} — ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่`, "error");
+      }
+    }
+
+    document.getElementById("forecastBtn").addEventListener("click", loadForecast);
+
+    renderRecords();
+    renderAreas();
+  </script>
+</body>
+</html>
